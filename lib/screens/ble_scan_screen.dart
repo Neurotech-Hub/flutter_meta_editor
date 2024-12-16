@@ -26,7 +26,6 @@ class BLEScanScreen extends StatefulWidget {
 }
 
 class _BLEScanScreenState extends State<BLEScanScreen> {
-  bool _isScanning = false;
   bool _isInitialized = false;
   final List<BLEDevice> _devices = [];
   StreamSubscription<List<ScanResult>>? _scanSubscription;
@@ -50,7 +49,6 @@ class _BLEScanScreenState extends State<BLEScanScreen> {
   Future<void> _restartBle() async {
     setState(() {
       _isInitialized = false;
-      _isScanning = false;
       _devices.clear();
     });
 
@@ -97,7 +95,6 @@ class _BLEScanScreenState extends State<BLEScanScreen> {
           if (isOn) {
             _startScan();
           } else {
-            _stopScan();
             _showError('Bluetooth is turned off');
           }
         }
@@ -140,12 +137,9 @@ class _BLEScanScreenState extends State<BLEScanScreen> {
         return;
       }
     } else if (Theme.of(context).platform == TargetPlatform.iOS) {
-      // iOS permissions
-      final bluetoothStatus = await Permission.bluetooth.request();
-      if (!bluetoothStatus.isGranted) {
-        _showError('Bluetooth permission is required');
-        return;
-      }
+      // For iOS, we don't need to explicitly request bluetooth permission
+      // The system will automatically prompt when needed
+      return;
     }
 
     // Wait a bit for the system dialog to complete
@@ -167,7 +161,6 @@ class _BLEScanScreenState extends State<BLEScanScreen> {
 
     setState(() {
       _devices.clear();
-      _isScanning = true;
     });
 
     try {
@@ -198,37 +191,17 @@ class _BLEScanScreenState extends State<BLEScanScreen> {
         },
         onError: (e) {
           _showError('Scan error: $e');
-          _stopScan();
         },
       );
 
+      // Start scan with 10 second timeout
       await FlutterBluePlus.startScan(
-        timeout: const Duration(seconds: 4),
+        timeout: const Duration(seconds: 10),
         androidUsesFineLocation: true,
       );
-
-      // Auto-stop scan after timeout
-      Future.delayed(const Duration(seconds: 4), _stopScan);
     } catch (e) {
       _showError('Error starting scan: $e');
-      _stopScan();
     }
-  }
-
-  Future<void> _stopScan() async {
-    if (!mounted) return;
-
-    _scanSubscription?.cancel();
-
-    try {
-      await FlutterBluePlus.stopScan();
-    } catch (e) {
-      debugPrint('Error stopping scan: $e');
-    }
-
-    setState(() {
-      _isScanning = false;
-    });
   }
 
   Future<void> _connectToDevice(BLEDevice bleDevice) async {
@@ -267,21 +240,13 @@ class _BLEScanScreenState extends State<BLEScanScreen> {
         title: const Text('Connect Device'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.restart_alt),
-            onPressed: _restartBle,
-          ),
-          IconButton(
-            icon: Icon(_isScanning ? Icons.stop : Icons.refresh),
-            onPressed: _isScanning ? _stopScan : _startScan,
+            icon: const Icon(Icons.refresh),
+            onPressed: _startScan,
           ),
         ],
       ),
       body: Column(
         children: [
-          if (_isScanning)
-            const LinearProgressIndicator()
-          else
-            const SizedBox(height: 4),
           if (!_isInitialized)
             const Padding(
               padding: EdgeInsets.all(16.0),
