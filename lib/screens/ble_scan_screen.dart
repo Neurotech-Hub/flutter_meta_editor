@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:async';
+import '../services/ble_file_transfer.dart';
 
 class BLEDevice {
   final BluetoothDevice device;
@@ -209,14 +210,27 @@ class _BLEScanScreenState extends State<BLEScanScreen> {
       await bleDevice.device.connect(
         timeout: const Duration(seconds: 4),
       );
+
+      // Attempt to read meta.json
+      final fileTransfer = BleFileTransfer();
+      final jsonData = await fileTransfer.readMetaJson(bleDevice.device);
+
       if (!mounted) return;
       setState(() {
         bleDevice.isConnected = true;
       });
-      Navigator.pop(context, bleDevice);
+
+      // Return both the device and the JSON data
+      Navigator.pop(context, {
+        'device': bleDevice,
+        'json': jsonData,
+      });
     } catch (e) {
       if (!mounted) return;
       _showError('Connection error: $e');
+      try {
+        await bleDevice.device.disconnect();
+      } catch (_) {}
     }
   }
 

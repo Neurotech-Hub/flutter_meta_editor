@@ -90,15 +90,20 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
               ),
               label: Text(_connectedDevice?.name ?? 'Not Connected'),
               onPressed: () async {
-                final device = await Navigator.push<BLEDevice>(
+                final result = await Navigator.push<Map<String, dynamic>>(
                   context,
                   MaterialPageRoute(
                     builder: (context) => const BLEScanScreen(),
                   ),
                 );
-                if (device != null) {
+                
+                if (result != null) {
+                  final device = result['device'] as BLEDevice;
+                  final jsonData = result['json'] as String;
+                  
                   setState(() {
                     _connectedDevice = device;
+                    _parseJson(jsonData);
                   });
                 }
               },
