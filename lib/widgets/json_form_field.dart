@@ -28,21 +28,25 @@ class JsonFormFieldState extends State<JsonFormField> {
     super.initState();
     _currentValue = widget.value;
     _controller = TextEditingController(
-      text: widget.value is String || widget.value is int
-          ? widget.value.toString()
-          : null,
+      text: _getDisplayValue(widget.value),
     );
   }
 
-  void _handleTextChange(String value) {
-    _currentValue = value; // Update current value without triggering onChange
+  @override
+  void didUpdateWidget(JsonFormField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Update controller if external value changes
+    if (widget.value != oldWidget.value) {
+      _currentValue = widget.value;
+      _controller.text = _getDisplayValue(widget.value);
+    }
   }
 
-  void _handleSubmitted(String value) {
-    widget.onChanged(value); // Only trigger onChange when submitted
+  String _getDisplayValue(dynamic value) {
+    if (value == null) return '';
+    return value.toString();
   }
 
-  // Add this method to commit pending changes
   void commitChanges() {
     if (_currentValue != widget.value) {
       widget.onChanged(_currentValue);
@@ -200,21 +204,29 @@ class JsonFormFieldState extends State<JsonFormField> {
           ),
           Expanded(
             flex: 3,
-            child: TextField(
-              keyboardType: TextInputType.number,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                labelText: widget.fieldName,
-                isDense: true,
+            child: Focus(
+              onFocusChange: (hasFocus) {
+                if (!hasFocus) {
+                  widget.onChanged(_currentValue);
+                }
+              },
+              child: TextField(
+                keyboardType: TextInputType.text,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  labelText: widget.fieldName,
+                  isDense: true,
+                ),
+                controller: _controller,
+                onChanged: (String value) {
+                  _currentValue = value.isEmpty ? 0 : int.parse(value);
+                },
+                onSubmitted: (String value) {
+                  widget.onChanged(value.isEmpty ? 0 : int.parse(value));
+                },
               ),
-              controller: _controller,
-              onChanged: (String value) {
-                _currentValue = value.isEmpty ? 0 : int.parse(value);
-              },
-              onSubmitted: (String value) {
-                widget.onChanged(value.isEmpty ? 0 : int.parse(value));
-              },
             ),
           ),
         ],
@@ -233,23 +245,31 @@ class JsonFormFieldState extends State<JsonFormField> {
           ),
           Expanded(
             flex: 3,
-            child: TextField(
-              keyboardType:
-                  const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
-              ],
-              decoration: InputDecoration(
-                border: const OutlineInputBorder(),
-                labelText: widget.fieldName,
-                isDense: true,
-              ),
-              controller: TextEditingController(text: widget.value.toString()),
-              onChanged: (String newValue) {
-                if (newValue.isNotEmpty) {
-                  widget.onChanged(double.parse(newValue));
+            child: Focus(
+              onFocusChange: (hasFocus) {
+                if (!hasFocus) {
+                  widget.onChanged(_currentValue);
                 }
               },
+              child: TextField(
+                keyboardType: TextInputType.text,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                ],
+                textInputAction: TextInputAction.done,
+                decoration: InputDecoration(
+                  border: const OutlineInputBorder(),
+                  labelText: widget.fieldName,
+                  isDense: true,
+                ),
+                controller: _controller,
+                onChanged: (String value) {
+                  _currentValue = value.isEmpty ? 0.0 : double.parse(value);
+                },
+                onSubmitted: (String value) {
+                  widget.onChanged(value.isEmpty ? 0.0 : double.parse(value));
+                },
+              ),
             ),
           ),
         ],
@@ -275,8 +295,15 @@ class JsonFormFieldState extends State<JsonFormField> {
                 isDense: true,
               ),
               controller: _controller,
-              onChanged: _handleTextChange,
-              onSubmitted: _handleSubmitted,
+              onChanged: (String value) {
+                _currentValue = value;
+              },
+              onSubmitted: (String value) {
+                widget.onChanged(value);
+              },
+              onEditingComplete: () {
+                widget.onChanged(_currentValue);
+              },
             ),
           ),
         ],

@@ -56,6 +56,7 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
   bool _isScanning = false;
   final List<BLEDevice> _scanResults = [];
   final _formKey = GlobalKey<JsonFormFieldState>();
+  final _rawEditorController = TextEditingController();
 
   @override
   void dispose() {
@@ -121,6 +122,8 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
       _jsonError = null;
       _scanResults.clear();
     });
+    // Reset gateway flag to allow writing on next connection
+    BleFileTransfer.resetGatewayFlag();
   }
 
   void _setupConnectionListener(BLEDevice device) {
@@ -372,6 +375,17 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
               : null,
           bottom: _connectedDevice != null
               ? TabBar(
+                  onTap: (index) {
+                    // Commit form changes before switching tabs
+                    _formKey.currentState?.commitChanges();
+
+                    // If switching to raw/pretty view, ensure latest data is shown
+                    if (index > 0 && _jsonData != null) {
+                      _rawEditorController.text =
+                          const JsonEncoder.withIndent('  ')
+                              .convert(_jsonData!);
+                    }
+                  },
                   indicatorColor: const Color(0xFF2196F3),
                   indicatorWeight: 3,
                   labelStyle: const TextStyle(
@@ -423,9 +437,7 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
         value: _jsonData,
         isRoot: true,
         onChanged: (newValue) {
-          setState(() {
-            _jsonData = newValue as Map<String, dynamic>;
-          });
+          _updateAllViews(newValue as Map<String, dynamic>);
         },
       ),
     );
@@ -440,11 +452,8 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
           border: OutlineInputBorder(),
           hintText: 'Enter JSON here',
         ),
-        controller: TextEditingController(
-            text: _jsonData != null
-                ? const JsonEncoder.withIndent('  ').convert(_jsonData)
-                : ''),
-        onChanged: _parseJson,
+        controller: _rawEditorController,
+        onChanged: _handleRawEditorChange,
       ),
     );
   }
@@ -589,5 +598,37 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
     final fileTransfer = BleFileTransfer();
     final jsonString = const JsonEncoder().convert(_jsonData);
     // ... rest of sync code
+  }
+
+  void _updateAllViews(Map<String, dynamic> newData) {
+    setState(() {
+      _jsonData = newData;
+      _jsonError = null;
+      // Update raw editor
+      _rawEditorController.text =
+          const JsonEncoder.withIndent('  ').convert(newData);
+    });
+  }
+
+  void _handleRawEditorChange(String jsonString) {
+    try {
+      final parsed = json.decode(jsonString) as Map<String, dynamic>;
+      _updateAllViews(parsed);
+    } catch (e) {
+      setState(() {
+        _jsonError = e.toString();
+      });
+    }
+  }
+
+  void _loadInitialJson(String jsonData) {
+    try {
+      final parsed = json.decode(jsonData) as Map<String, dynamic>;
+      _updateAllViews(parsed);
+    } catch (e) {
+      setState(() {
+        _jsonError = e.toString();
+      });
+    }
   }
 }

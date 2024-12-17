@@ -12,13 +12,16 @@ class BleFileTransfer {
       "57617368-5504-0001-8000-00805f9b34fb";
   static const String CHARACTERISTIC_UUID_NODE =
       "57617368-5505-0001-8000-00805f9b34fb";
-  static const int CHUNK_TIMEOUT = 5; // seconds
-  static const int MAX_RETRIES = 3;
   bool _isSyncing = false;
+  static bool _gatewayDataWritten = false;
 
   BleFileTransfer() {
     // Remove or modify logging level
     FlutterBluePlus.setLogLevel(LogLevel.none);  // Or LogLevel.error for critical issues only
+  }
+
+  static void resetGatewayFlag() {
+    _gatewayDataWritten = false;
   }
 
   Map<String, dynamic> _createGatewayPayload() {
@@ -33,6 +36,8 @@ class BleFileTransfer {
   }
 
   Future<void> writeGatewayData(BluetoothDevice device) async {
+    if (_gatewayDataWritten) return;
+
     try {
       final services = await device.discoverServices();
       final service = services.firstWhere(
@@ -54,6 +59,8 @@ class BleFileTransfer {
         utf8.encode(jsonString),
         withoutResponse: false,
       );
+      
+      _gatewayDataWritten = true;
     } catch (e) {
       throw Exception('Failed to write gateway data: $e');
     }
@@ -176,10 +183,12 @@ class BleFileTransfer {
           'metaJsonId': chunkId,
           'metaJsonData': chunk,
         };
+        
         await gatewayChar.write(
           utf8.encode(jsonEncode(payload)),
           withoutResponse: false,
         );
+        
         await Future.delayed(const Duration(milliseconds: 100));
         chunkId++;
       }
@@ -188,10 +197,12 @@ class BleFileTransfer {
         'metaJsonId': 0,
         'metaJsonData': 'EOF',
       };
+      
       await gatewayChar.write(
         utf8.encode(jsonEncode(eofPayload)),
         withoutResponse: false,
       );
+      
       await Future.delayed(const Duration(milliseconds: 100));
       print('Sync complete');
 
