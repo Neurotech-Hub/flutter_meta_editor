@@ -4,8 +4,6 @@ import 'widgets/json_form_field.dart';
 import 'package:flutter_highlight/flutter_highlight.dart';
 import 'package:flutter_highlight/themes/github.dart';
 import 'screens/ble_scan_screen.dart';
-import 'services/ble_service.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 void main() {
   runApp(const MainApp());
@@ -54,7 +52,6 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
   Map<String, dynamic>? _jsonData;
   String? _jsonError;
   BLEDevice? _connectedDevice;
-  final BLEService _bleService = BLEService();
 
   @override
   void initState() {
@@ -97,21 +94,9 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
                   ),
                 );
                 if (device != null) {
-                  try {
-                    await _bleService.connectToDevice(device.device);
-                    final metaJson = await _bleService.readMetaJson();
-
-                    setState(() {
-                      _connectedDevice = device;
-                      _parseJson(metaJson);
-                    });
-                  } catch (e) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                          content: Text('Connection failed: ${e.toString()}')),
-                    );
-                    await _bleService.disconnect();
-                  }
+                  setState(() {
+                    _connectedDevice = device;
+                  });
                 }
               },
             ),
@@ -119,22 +104,10 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
               icon: const Icon(Icons.sync),
               onPressed: _connectedDevice == null
                   ? null // Disable sync when not connected
-                  : () async {
-                      try {
-                        final metaJson = await _bleService.readMetaJson();
-                        setState(() {
-                          _parseJson(metaJson);
-                        });
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                              content: Text('Meta file synced successfully')),
-                        );
-                      } catch (e) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content: Text('Sync failed: ${e.toString()}')),
-                        );
-                      }
+                  : () {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Sync button pressed')),
+                      );
                     },
             ),
           ],
@@ -217,11 +190,5 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
             )
           : const Text('No valid JSON data'),
     );
-  }
-
-  @override
-  void dispose() {
-    _bleService.dispose();
-    super.dispose();
   }
 }
