@@ -21,8 +21,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - assets/meta.json
   fonts:
     - family: Outfit
       fonts:

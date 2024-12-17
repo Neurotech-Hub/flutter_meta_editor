@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-class JsonFormField extends StatelessWidget {
+class JsonFormField extends StatefulWidget {
   final String fieldName;
   final dynamic value;
   final bool isRoot;
@@ -16,20 +16,54 @@ class JsonFormField extends StatelessWidget {
   });
 
   @override
+  State<JsonFormField> createState() => JsonFormFieldState();
+}
+
+class JsonFormFieldState extends State<JsonFormField> {
+  late TextEditingController _controller;
+  dynamic _currentValue;
+
+  @override
+  void initState() {
+    super.initState();
+    _currentValue = widget.value;
+    _controller = TextEditingController(
+      text: widget.value is String || widget.value is int
+          ? widget.value.toString()
+          : null,
+    );
+  }
+
+  void _handleTextChange(String value) {
+    _currentValue = value; // Update current value without triggering onChange
+  }
+
+  void _handleSubmitted(String value) {
+    widget.onChanged(value); // Only trigger onChange when submitted
+  }
+
+  // Add this method to commit pending changes
+  void commitChanges() {
+    if (_currentValue != widget.value) {
+      widget.onChanged(_currentValue);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (value == null) {
+    if (widget.value == null) {
       return const Text('null');
     }
 
-    if (value is Map<String, dynamic>) {
+    if (widget.value is Map<String, dynamic>) {
       final optionsMap = <String, List<String>>{};
       final fieldsToHide = <String>[];
 
       // Collect all *_options fields
-      for (final entry in value.entries) {
+      for (final entry in widget.value.entries) {
         if (entry.key.endsWith('_options') && entry.value is List) {
           final baseFieldName = entry.key.replaceAll('_options', '');
-          if (value.containsKey(baseFieldName)) {
+          if (widget.value.containsKey(baseFieldName)) {
             optionsMap[baseFieldName] = List<String>.from(entry.value);
             fieldsToHide.add(entry.key);
           }
@@ -38,7 +72,7 @@ class JsonFormField extends StatelessWidget {
 
       // Shared function to build entry widgets
       List<Widget> buildEntryWidgets() {
-        return value.entries.map<Widget>((entry) {
+        return widget.value.entries.map<Widget>((entry) {
           if (fieldsToHide.contains(entry.key)) {
             return const SizedBox.shrink();
           }
@@ -64,9 +98,10 @@ class JsonFormField extends StatelessWidget {
                       }).toList(),
                       onChanged: (newValue) {
                         if (newValue != null) {
-                          final newMap = Map<String, dynamic>.from(value);
+                          final newMap =
+                              Map<String, dynamic>.from(widget.value);
                           newMap[entry.key] = newValue;
-                          onChanged(newMap);
+                          widget.onChanged(newMap);
                         }
                       },
                       decoration: InputDecoration(
@@ -86,16 +121,16 @@ class JsonFormField extends StatelessWidget {
               fieldName: entry.key,
               value: entry.value,
               onChanged: (newValue) {
-                final newMap = Map<String, dynamic>.from(value);
+                final newMap = Map<String, dynamic>.from(widget.value);
                 newMap[entry.key] = newValue;
-                onChanged(newMap);
+                widget.onChanged(newMap);
               },
             ),
           );
         }).toList();
       }
 
-      return isRoot
+      return widget.isRoot
           ? Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: buildEntryWidgets(),
@@ -109,7 +144,7 @@ class JsonFormField extends StatelessWidget {
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8.0),
                       child: Text(
-                        fieldName,
+                        widget.fieldName,
                         style: Theme.of(context)
                             .textTheme
                             .titleMedium
@@ -123,30 +158,30 @@ class JsonFormField extends StatelessWidget {
             );
     }
 
-    if (value is bool) {
+    if (widget.value is bool) {
       return _buildBoolField();
-    } else if (value is int) {
+    } else if (widget.value is int) {
       return _buildIntField();
-    } else if (value is double) {
+    } else if (widget.value is double) {
       return _buildDoubleField();
-    } else if (value is String) {
+    } else if (widget.value is String) {
       return _buildStringField();
     }
-    return Text('Unsupported type: ${value.runtimeType}');
+    return Text('Unsupported type: ${widget.value.runtimeType}');
   }
 
   Widget _buildBoolField() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         children: [
           Expanded(
-            child: Text(fieldName, style: const TextStyle(fontSize: 16)),
+            child: Text(widget.fieldName, style: const TextStyle(fontSize: 16)),
           ),
           Switch(
-            value: value as bool,
+            value: widget.value as bool,
             onChanged: (bool newValue) {
-              onChanged(newValue);
+              widget.onChanged(newValue);
             },
           ),
         ],
@@ -156,12 +191,12 @@ class JsonFormField extends StatelessWidget {
 
   Widget _buildIntField() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         children: [
           Expanded(
             flex: 2,
-            child: Text(fieldName, style: const TextStyle(fontSize: 16)),
+            child: Text(widget.fieldName, style: const TextStyle(fontSize: 16)),
           ),
           Expanded(
             flex: 3,
@@ -170,14 +205,15 @@ class JsonFormField extends StatelessWidget {
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
-                labelText: fieldName,
+                labelText: widget.fieldName,
                 isDense: true,
               ),
-              controller: TextEditingController(text: value.toString()),
-              onChanged: (String newValue) {
-                if (newValue.isNotEmpty) {
-                  onChanged(int.parse(newValue));
-                }
+              controller: _controller,
+              onChanged: (String value) {
+                _currentValue = value.isEmpty ? 0 : int.parse(value);
+              },
+              onSubmitted: (String value) {
+                widget.onChanged(value.isEmpty ? 0 : int.parse(value));
               },
             ),
           ),
@@ -188,12 +224,12 @@ class JsonFormField extends StatelessWidget {
 
   Widget _buildDoubleField() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         children: [
           Expanded(
             flex: 2,
-            child: Text(fieldName, style: const TextStyle(fontSize: 16)),
+            child: Text(widget.fieldName, style: const TextStyle(fontSize: 16)),
           ),
           Expanded(
             flex: 3,
@@ -205,13 +241,13 @@ class JsonFormField extends StatelessWidget {
               ],
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
-                labelText: fieldName,
+                labelText: widget.fieldName,
                 isDense: true,
               ),
-              controller: TextEditingController(text: value.toString()),
+              controller: TextEditingController(text: widget.value.toString()),
               onChanged: (String newValue) {
                 if (newValue.isNotEmpty) {
-                  onChanged(double.parse(newValue));
+                  widget.onChanged(double.parse(newValue));
                 }
               },
             ),
@@ -223,23 +259,24 @@ class JsonFormField extends StatelessWidget {
 
   Widget _buildStringField() {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8.0),
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
       child: Row(
         children: [
           Expanded(
             flex: 2,
-            child: Text(fieldName, style: const TextStyle(fontSize: 16)),
+            child: Text(widget.fieldName, style: const TextStyle(fontSize: 16)),
           ),
           Expanded(
             flex: 3,
             child: TextField(
               decoration: InputDecoration(
                 border: const OutlineInputBorder(),
-                labelText: fieldName,
+                labelText: widget.fieldName,
                 isDense: true,
               ),
-              controller: TextEditingController(text: value.toString()),
-              onChanged: onChanged,
+              controller: _controller,
+              onChanged: _handleTextChange,
+              onSubmitted: _handleSubmitted,
             ),
           ),
         ],

@@ -206,19 +206,104 @@ class _BLEScanScreenState extends State<BLEScanScreen> {
   }
 
   Future<void> _connectToDevice(BLEDevice bleDevice) async {
+    setState(() {
+      bleDevice.isConnected = true;
+    });
+
     try {
+      // Clear any existing SnackBars
+      ScaffoldMessenger.of(context).clearSnackBars();
+
+      final messenger = ScaffoldMessenger.of(context);
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white),
+              ),
+              SizedBox(width: 16),
+              Text('Connecting to device...'),
+            ],
+          ),
+          duration: Duration(seconds: 60),
+        ),
+      );
+
       await bleDevice.device.connect(
         timeout: const Duration(seconds: 4),
       );
 
-      // Attempt to read meta.json
+      if (!mounted) return;
+
+      // Update to writing gateway data
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white),
+              ),
+              SizedBox(width: 16),
+              Text('Initializing connection...'),
+            ],
+          ),
+          duration: Duration(seconds: 60),
+        ),
+      );
+
+      // Write gateway data before reading meta.json
       final fileTransfer = BleFileTransfer();
+      await fileTransfer.writeGatewayData(bleDevice.device);
+
+      if (!mounted) return;
+
+      // Continue with reading meta.json...
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(
+                    strokeWidth: 2, color: Colors.white),
+              ),
+              SizedBox(width: 16),
+              Text('Reading meta.json...'),
+            ],
+          ),
+          duration: Duration(seconds: 60),
+        ),
+      );
+
       final jsonData = await fileTransfer.readMetaJson(bleDevice.device);
 
       if (!mounted) return;
-      setState(() {
-        bleDevice.isConnected = true;
-      });
+
+      // Show brief success message
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 16),
+              Text('Connected successfully'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 1),
+        ),
+      );
 
       // Return both the device and the JSON data
       Navigator.pop(context, {
@@ -227,7 +312,25 @@ class _BLEScanScreenState extends State<BLEScanScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      _showError('Connection error: $e');
+      setState(() {
+        bleDevice.isConnected = false;
+      });
+
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.error, color: Colors.white),
+              const SizedBox(width: 16),
+              Expanded(child: Text('Connection error: $e')),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
       try {
         await bleDevice.device.disconnect();
       } catch (_) {}
@@ -274,22 +377,47 @@ class _BLEScanScreenState extends State<BLEScanScreen> {
               itemCount: _devices.length,
               itemBuilder: (context, index) {
                 final device = _devices[index];
-                return ListTile(
-                  leading: Icon(
-                    Icons.bluetooth,
-                    color: device.isConnected ? Colors.blue : Colors.grey,
+                return Card(
+                  margin: const EdgeInsets.symmetric(
+                    horizontal: 16.0,
+                    vertical: 8.0,
                   ),
-                  title: Text(device.name),
-                  subtitle: Text('${device.id}\nSignal: ${device.rssi} dBm'),
-                  trailing: device.isConnected
-                      ? TextButton(
-                          onPressed: () => _disconnectDevice(device),
-                          child: const Text('Disconnect'),
-                        )
-                      : TextButton(
-                          onPressed: () => _connectToDevice(device),
-                          child: const Text('Connect'),
-                        ),
+                  child: ListTile(
+                    leading: Icon(
+                      Icons.bluetooth,
+                      color: device.isConnected ? Colors.blue : Colors.grey,
+                      size: 32,
+                    ),
+                    title: Text(
+                      device.name,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                    subtitle: Text(
+                      'Signal: ${device.rssi} dBm',
+                      style: const TextStyle(fontSize: 14),
+                    ),
+                    trailing: device.isConnected
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(),
+                          )
+                        : ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.blue,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 12,
+                              ),
+                            ),
+                            onPressed: () => _connectToDevice(device),
+                            child: const Text('Connect'),
+                          ),
+                  ),
                 );
               },
             ),
