@@ -18,6 +18,7 @@ class MainApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         primarySwatch: Colors.blue,
+        fontFamily: 'Outfit',
       ),
       home: const JsonEditorScreen(),
     );
@@ -32,23 +33,6 @@ class JsonEditorScreen extends StatefulWidget {
 }
 
 class _JsonEditorScreenState extends State<JsonEditorScreen> {
-  final String initialJson = '''{
-    "hublink": {
-      "advertise": "CUSTOM_NAME",
-      "advertise_every": 300,
-      "advertise_for": 30,
-      "disable": false
-    },
-    "subject": {
-      "id": "mouse001",
-      "strain": "C57BL/6",
-      "sex": "male"
-    },
-    "fed": {
-      "program": "Classic"
-    }
-  }''';
-
   Map<String, dynamic>? _jsonData;
   String? _jsonError;
   BLEDevice? _connectedDevice;
@@ -56,7 +40,19 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
   @override
   void initState() {
     super.initState();
-    _parseJson(initialJson);
+    _loadInitialJson();
+  }
+
+  Future<void> _loadInitialJson() async {
+    try {
+      final jsonString =
+          await DefaultAssetBundle.of(context).loadString('assets/meta.json');
+      _parseJson(jsonString);
+    } catch (e) {
+      setState(() {
+        _jsonError = 'Error loading meta.json: $e';
+      });
+    }
   }
 
   void _parseJson(String jsonString) {
@@ -78,7 +74,14 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
       length: 3,
       child: Scaffold(
         appBar: AppBar(
-          title: const Text('JSON Editor'),
+          centerTitle: false,
+          title: Text(
+            'meta.json Editor',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontFamily: 'Outfit',
+                  fontWeight: FontWeight.bold,
+                ),
+          ),
           actions: [
             TextButton.icon(
               icon: Icon(
@@ -99,16 +102,6 @@ class _JsonEditorScreenState extends State<JsonEditorScreen> {
                   });
                 }
               },
-            ),
-            IconButton(
-              icon: const Icon(Icons.sync),
-              onPressed: _connectedDevice == null
-                  ? null // Disable sync when not connected
-                  : () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Sync button pressed')),
-                      );
-                    },
             ),
           ],
           bottom: const TabBar(

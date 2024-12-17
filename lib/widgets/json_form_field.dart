@@ -4,22 +4,126 @@ import 'package:flutter/services.dart';
 class JsonFormField extends StatelessWidget {
   final String fieldName;
   final dynamic value;
-  final Function(dynamic) onChanged;
   final bool isRoot;
+  final Function(dynamic) onChanged;
 
   const JsonFormField({
     super.key,
     required this.fieldName,
     required this.value,
-    required this.onChanged,
     this.isRoot = false,
+    required this.onChanged,
   });
 
   @override
   Widget build(BuildContext context) {
-    if (value is Map) {
-      return _buildMapField(context);
-    } else if (value is bool) {
+    if (value == null) {
+      return const Text('null');
+    }
+
+    if (value is Map<String, dynamic>) {
+      final optionsMap = <String, List<String>>{};
+      final fieldsToHide = <String>[];
+
+      // Collect all *_options fields
+      for (final entry in value.entries) {
+        if (entry.key.endsWith('_options') && entry.value is List) {
+          final baseFieldName = entry.key.replaceAll('_options', '');
+          if (value.containsKey(baseFieldName)) {
+            optionsMap[baseFieldName] = List<String>.from(entry.value);
+            fieldsToHide.add(entry.key);
+          }
+        }
+      }
+
+      // Shared function to build entry widgets
+      List<Widget> buildEntryWidgets() {
+        return value.entries.map<Widget>((entry) {
+          if (fieldsToHide.contains(entry.key)) {
+            return const SizedBox.shrink();
+          }
+
+          if (optionsMap.containsKey(entry.key)) {
+            return Padding(
+              padding: const EdgeInsets.symmetric(vertical: 4.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    flex: 1,
+                    child: Text(entry.key),
+                  ),
+                  Expanded(
+                    flex: 2,
+                    child: DropdownButtonFormField<String>(
+                      value: entry.value.toString(),
+                      items: optionsMap[entry.key]!.map((option) {
+                        return DropdownMenuItem(
+                          value: option,
+                          child: Text(option),
+                        );
+                      }).toList(),
+                      onChanged: (newValue) {
+                        if (newValue != null) {
+                          final newMap = Map<String, dynamic>.from(value);
+                          newMap[entry.key] = newValue;
+                          onChanged(newMap);
+                        }
+                      },
+                      decoration: InputDecoration(
+                        border: const OutlineInputBorder(),
+                        labelText: entry.key,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4.0),
+            child: JsonFormField(
+              fieldName: entry.key,
+              value: entry.value,
+              onChanged: (newValue) {
+                final newMap = Map<String, dynamic>.from(value);
+                newMap[entry.key] = newValue;
+                onChanged(newMap);
+              },
+            ),
+          );
+        }).toList();
+      }
+
+      return isRoot
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: buildEntryWidgets(),
+            )
+          : Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8.0),
+                      child: Text(
+                        fieldName,
+                        style: Theme.of(context)
+                            .textTheme
+                            .titleMedium
+                            ?.copyWith(fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                    ...buildEntryWidgets(),
+                  ],
+                ),
+              ),
+            );
+    }
+
+    if (value is bool) {
       return _buildBoolField();
     } else if (value is int) {
       return _buildIntField();
@@ -29,39 +133,6 @@ class JsonFormField extends StatelessWidget {
       return _buildStringField();
     }
     return Text('Unsupported type: ${value.runtimeType}');
-  }
-
-  Widget _buildMapField(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.all(8.0),
-      child: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (!isRoot)
-              Text(
-                fieldName,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-            const SizedBox(height: 8),
-            ...((value as Map).entries.map((entry) {
-              return JsonFormField(
-                fieldName: entry.key,
-                value: entry.value,
-                onChanged: (newValue) {
-                  final newMap = Map<String, dynamic>.from(value as Map);
-                  newMap[entry.key] = newValue;
-                  onChanged(newMap);
-                },
-              );
-            })),
-          ],
-        ),
-      ),
-    );
   }
 
   Widget _buildBoolField() {
